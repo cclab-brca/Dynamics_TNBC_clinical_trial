@@ -11,10 +11,6 @@ require(metacell, quietly = T)
 
 source("PAR1006_scRNAseq_utils.R")
 
-# Dependecies/requirement ------
-# tgconfig
-# scrublet in a conda environment named r-scrublet
-
 rebuild = F
 
 # Set output directory (change if needed)
