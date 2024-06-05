@@ -1,0 +1,10 @@
+supid	color	name
+1	"#377EB8"	Epithelial
+16	"#377EB8"	Epithelial
+115	"#800026"	Mesenchymal
+39	"#FEB24C"	EM-hybrid
+69	"#FEB24C"	EM-hybrid
+86	"#FEB24C"	EM-hybrid
+4	"#E31A1C"	EM-hybrid-IER
+56	"#E31A1C"	EM-hybrid-IER
+111	"#4DAF4A"	Myoepithelial

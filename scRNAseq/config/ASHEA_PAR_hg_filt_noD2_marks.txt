@@ -1,0 +1,3 @@
+name	gene	color	T_fold
+Hypoxic	BNIP3	"#F781BF"	0.5
+Immune-Act	HLA-A	"#A6CEE3"	2
