@@ -1,0 +1,581 @@
+---
+title: "Bulk RNA-seq analysis for Modeling drug responses and evolutionary dynamics using triple negative breast cancer patient-derived xenografts"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+Author: Raquel Manzano (RaqManzano)
+---
+
+# Content
+
+Here you will find the code that was used to analyse bulk RNA-seq data for [Modeling drug responses and evolutionary dynamics using triple negative breast cancer patient-derived xenografts](https://doi.org/10.1101/2023.01.10.523259). To reproduce the figures please use the provided inputs in this repo.
+
+Input files will be at the [data](https://github.com/cclab-brca/Dynamics_TNBC_clinical_trial/bulkrnaseq/data) folder. The chunks are setup to run the code from the repo folder.
+
+# Methods
+
+Bulk RNA-seq expression data was produced aligning with [STAR](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3530905/) and quantifying with [salmon](https://www.nature.com/articles/nmeth.4197).
+ 
+The bioinformatics analysis of the RNA-seq data was perform using R 4.0.3. Gene Set Enrichment Analysis (GSEA) was done in single-sample mode ([ssGSEA](https://gsea-msigdb.github.io/ssGSEA-gpmodule/v10/index.html)) with the [GSVA](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-14-70) package and [fgsea](https://www.biorxiv.org/content/10.1101/060012v3) package for pathway analysis. Normalization and differential gene expression analysis was done using [edgeR](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2796818/) package.
+
+# Setup
+
+Please make sure you have all required packages installed. If you are starting from scratch we recommend installing [`mamba`](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html)  and using our [`yaml` file](yaml/bulkrnaseqpdx.yml) folder with all the required packages to run this code:
+
+```{bash, mamba, eval=FALSE}
+# Create environment
+mamba env create --file yaml/bulkrnaseqpdx.yml
+# activate environment
+mamba activate bulkrnapdx
+# Re-run this R notebook to obtain HTML or open in Rstudio to work on it interactively
+Rscript -e "rmarkdown::render('BulkRNASeq_Analysis.Rmd')"
+```
+
+
+After activating mamba environment you will obtain an HTML file with the bulk RNA-seq plots used for the paper.
+
+
+```{r, setup, include=FALSE}
+knitr::opts_knit$set(root.dir = '.')
+```
+
+```{r, libraries,warning=FALSE}
+library(edgeR)
+library(data.table)
+library(ggfortify)
+library(cowplot)
+library(ggplot2)
+library(ComplexHeatmap)
+library(ggsci)
+library(GSVA)
+library(GSEABase)
+library(ggpubr)
+library(ggbeeswarm)
+library(DESeq2)
+library(RColorBrewer)
+library(fgsea)
+```
+
+# Figure 1C: A preclinical platform of triple-negative breast cancer (TNBC) patient-derived tumour xenografts (PDTXs).
+
+Correlation plots comparing enrichment scores from GSEA analysis using Hallmark and C6 gene sets for models 1006, 1040, 1022 and 1141 (top) and correlation plots comparing variant allele frequencies (VAF) mutations for model 1006 (bottom). Correlation was calculated between passages, sister mice and multiple regions of the same tumour. r value calculated using Spearman correlation.
+
+## Preparation of passage table
+
+```{r, passage_table}
+passage.table <- data.table(Model=c(rep("PAR1006", 6),
+                                    rep("PAR1022", 6),
+                                    rep("PAR1040", 6),
+                                    rep("PAR1141", 6)),
+                            Type=rep(c(rep("SpatialRegion", 2),
+                                   rep("SisterMice", 2),
+                                   rep("BetweenPassages", 2)), 4),
+                            SampleNr=rep(rep(c(1,2),3), 4),
+                            SampleID=c("PAR1006-T1-P03-19.037998-T1-FF1", "PAR1006-T1-P03-19.037998-T1-FF3",
+                                       "PAR1006-T1-P02-18.018211-T1-FF1", "PAR1006-T1-P02-18.018213-T1-FF1",
+                                       "PAR1006-T1-P02-18.018211-T1-FF1", "PAR1006-T1-P03-19.038002-T1-FF1",
+                                       "PAR1022-T1-P02-18.018165-T1-FF1", "PAR1022-T1-P02-18.018165-T1-FF3",
+                                       "PAR1022-T1-P03-18.028981-T1-FF1", "PAR1022-T1-P03-18.028983-T1-FF1",
+                                       "PAR1022-T1-P02-18.018183-T1-FF1", "PAR1022-T1-P03-18.028981-T1-FF1",
+                                       "PAR1040-T1-P02-18.018227-T1-FF1", "PAR1040-T1-P02-18.018227-T1-FF3",
+                                       "PAR1040-T1-P01-17.044996-T1-FF1", "PAR1040-T1-P01-17.045005-T1-FF2",
+                                       "PAR1040-T1-P01-17.044996-T1-FF1", "PAR1040-T1-P02-18.018155-T1-FF1",
+                                       "PAR1141-T1-P01-18.036674-T1-FF1", "PAR1141-T1-P01-18.036674-T1-FF3",
+                                       "PAR1141-T1-P02-19.023968-T1-FF1", "PAR1141-T1-P02-19.023970-T1-FF1",
+                                       "PAR1141-T1-P01-18.045501-T1-FF1", "PAR1141-T1-P02-19.023968-T1-FF1"))
+passage.table$idx <- 1:nrow(passage.table)
+passage.table
+```
+
+## Loading expression data
+
+We look at untreated samples and expect clustering between PARTNER models which are: PAR1006, PAR1008, PAR1022, PAR1040, PAR1053, PAR1141, PAR1177 and PAR1221.
+
+```{r, load_data}
+load('data/PDXModDynTNBC_MetaUntreated.Rdata')
+load('data/PDXModDynTNBC_ExprUntreated.Rdata')
+# Check that metadata and expression data have same ids.
+stopifnot(all(colnames(untreated.expr)==untreated.mdata$`Sample name`))
+```
+
+
+We select for coding genes. This list includes a few non-coding genes that have been identify in cancer studies.
+```{r, coding}
+coding <- fread("data/gencode.v39.chr_patch_hapl_scaff.annotation.genes.coding.ensembl.txt", header = F)
+# ignore PAR_Y genes (pseudoautosomal regions (PAR) from chromosome Y)
+coding             <- coding[!coding$V1%like%"PAR_Y",]
+nrow.before.coding <- nrow(untreated.expr)
+# filter for coding in expression table
+untreated.expr     <- untreated.expr[coding$V1,]
+nrow.after.coding  <- nrow(untreated.expr)
+message("We removed ", prettyNum(nrow.before.coding-nrow.after.coding, big.mark = ","), " noncoding genes from the analysis and kept ",prettyNum(nrow.after.coding, big.mark = ","), " coding genes.")
+```
+
+Finally, we normalise with edgeR and voom.
+```{r, normalise_untreated}
+# transform to edgeR object
+m1 <- DGEList(untreated.expr)
+# effective library size correction
+m1 <- calcNormFactors(m1) 
+# transform data to microarray-like (log transform) with voom
+untreated.expr.norm <- voom(m1)$E 
+```
+
+## ssGSEA analysis
+
+```{r, gmt}
+hallmarks <- getGmt("~/Downloads/h.all.v7.5.1.symbols.gmt")
+cancer.c6 <- getGmt("~/Downloads/c6.all.v7.5.1.symbols.gmt")
+```
+
+To use GSVA we need to convert our ENSEMBL ids to SYMBOLs:
+
+```{r, ensembl2symbol}
+# read table with ensemblids and symbols
+gene.names <- fread("data/gencode.v39.chr_patch_hapl_scaff.annotation.genetype.txt", header = F)
+# provide appropriate colnames
+colnames(gene.names)     <- c("symbol", "ensemblid", "type")
+gene.names.vector        <- gene.names$symbol
+names(gene.names.vector) <- gene.names$ensemblid
+# convert ENSEMBL to SYMBOL
+genes                         <- rownames(untreated.expr.norm)
+rownames(untreated.expr.norm) <- gene.names.vector[genes]
+```
+
+Run GSEA in ssGSEA mode for (hallmarks)[https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp#H] and (collection 6)(https://www.gsea-msigdb.org/gsea/msigdb/human/collections.jsp#C6) from (MsigDB)[https://www.gsea-msigdb.org/gsea/msigdb/].
+
+```{r, ssgsea}
+# Hallmarks
+hallmarks.res <- gsva(expr = untreated.expr.norm,
+                   gset.idx.list = hallmarks,
+                   method = "ssgsea", verbose=TRUE)
+stopifnot(all(colnames(hallmarks.res) == untreated.mdata$`Sample name`))
+# C6
+c6.res <- gsva(expr = untreated.expr.norm,
+                   gset.idx.list = cancer.c6,
+                   method = "ssgsea", verbose=TRUE)
+stopifnot(all(colnames(c6.res) == untreated.mdata$`Sample name`))
+```
+
+Now, we get the enrichment scores from the GSEA analysis and generate a table for plotting:
+
+```{r, plotting_setup}
+# Extraction of enrichment score to table
+hallmarks.dt <- melt(hallmarks.res)
+colnames(hallmarks.dt) <- c("PATHWAY", "SampleID", "Enrichment")
+hallmarks.dt$Collection <- "HALLMARKS"
+c6.dt <- melt(c6.res)
+colnames(c6.dt) <- c("PATHWAY", "SampleID", "Enrichment")
+c6.dt$Collection <- "C6"
+pathway.dt <- as.data.table(rbind(hallmarks.dt, c6.dt))
+# Generation of table for plotting
+generate.plotting.table <- function(x){
+passage.plotting <- data.table()
+for (idx in passage.table[SampleNr==1 & Type==x]$idx) {
+  samplemodel <- passage.table$Model[idx]
+  sampletype <- passage.table$Type[idx]
+  sampleid1 <- passage.table[Model==samplemodel & Type==sampletype & SampleNr==1]$SampleID
+  sampleid2 <- passage.table[Model==samplemodel & Type==sampletype & SampleNr==2]$SampleID
+  sample1.pathways1 <- pathway.dt[SampleID==sampleid1][order(PATHWAY)]
+  sample2.pathways1 <- pathway.dt[SampleID==sampleid2][order(PATHWAY)]
+  stopifnot(sample1.pathways1$PATHWAY==sample2.pathways1$PATHWAY)
+  tmp.dt <- data.table(Model=samplemodel, Type=sampletype, 
+                       Passage1=sample1.pathways1$Enrichment,
+                       Passage2=sample2.pathways1$Enrichment,
+                       Pathway=sample1.pathways1$PATHWAY,
+                       Collection=sample1.pathways1$Collection)
+  passage.plotting <- rbind(passage.plotting, tmp.dt)
+}
+passage.plotting
+}
+```
+
+For the generation of plotting table I used the index of samples that were "sample 1" to iterate through the table with the mice to compare against "sample 2".
+
+
+### Figure 1 C
+```{r, fig1C}
+# Plot comparing samples that were from the same model but different spatial regions:
+ggscatter(generate.plotting.table("SpatialRegion"), x="Passage2", y="Passage1",
+          add = "reg.line",                                 # Add regression line
+          conf.int = TRUE,   
+          facet.by = "Collection",
+          # Add confidence interval
+          add.params = list(color = "blue",
+                            fill = "lightgray")
+          )+
+  stat_cor(method = "spearman") + ggtitle("Spatial Regions")
+# Plot comparing samples that were from the same model but different mice (sisters).:
+ggscatter(generate.plotting.table("SisterMice"), x="Passage2", y="Passage1",
+          add = "reg.line",                                 # Add regression line
+          conf.int = TRUE,   
+          facet.by = "Collection",
+          # Add confidence interval
+          add.params = list(color = "blue",
+                            fill = "lightgray")
+          )+
+  stat_cor(method = "spearman") +
+  ggtitle("Sister Mice") 
+# Plot comparing samples that were from the same model but different passages:
+ggscatter(generate.plotting.table("BetweenPassages"), x="Passage2", y="Passage1",
+          add = "reg.line",                                 # Add regression line
+          conf.int = TRUE,   
+          facet.by = "Collection",
+          # Add confidence interval
+          add.params = list(color = "blue",
+                            fill = "lightgray")
+          )+
+  stat_cor(method = "spearman") + ggtitle("Between Passages")
+```
+
+
+# Figure 5A and 5B:Olaparib treatment causes permanent phenotypic changes due to transcription factor reprogramming.
+
+Heatmap displaying z score (scaled by row) of the top 250 strong and variable genes in PDTX samples.
+
+Clustering analysis performed using Euclidean distances. Columns indicate samples. T: Treated. PT: Post-treated
+
+```{r, load_trial}
+load("data/PDXModDynTNBC_ExprTrial.Rdata")
+load("data/PDXModDynTNBC_MetaTrial.Rdata")
+```
+
+
+## Figure 5A
+Select for strongly expressed genes with high variation using logCPM transformation.
+```{r, select_genes}
+logcpm <- cpm(trial.expr, log=TRUE)
+# highly express genes
+strong_genes <- apply(logcpm, 1, mean)
+# I am taking a bigger selection to increase the overlap
+select_strong_5000 <- names(sort(strong_genes, decreasing=TRUE))[1:5000]
+# highly variable genes
+var_genes <- apply(logcpm, 1, var)
+# I am taking a bigger selection to increase the overlap
+select_var_5000 <- names(sort(var_genes, decreasing=TRUE))[1:5000]
+strong_var <- intersect(select_strong_5000, select_var_5000)
+strong_var_lcpm <- logcpm[strong_var[1:250],]
+var_strong_scaled <- t(scale(t(strong_var_lcpm)))
+var_strong_scaled <- var_strong_scaled[,trial.mdat$`Sample name`]
+colnames(var_strong_scaled) <- sapply(colnames(var_strong_scaled), function(x){strsplit(strsplit(x, "\\.")[[1]][2], "-")[[1]][1]})
+```
+
+
+Make heatmap with the above gene selection:
+```{r, fig5A}
+col <- list(Cohort = c("Untreated"="black", "Olaparib"="#8491B4FF"),
+            Sampling = c("T"="grey", "PT"="black"))
+mypalette <- brewer.pal(11,"RdYlBu")
+morecols <- colorRampPalette(mypalette)
+ha <- HeatmapAnnotation(Cohort=trial.mdat$Cohort,
+                        Sampling=trial.mdat$Sampling,
+                        col = col)
+Heatmap(var_strong_scaled, top_annotation = ha,
+        column_title = "Samples", 
+        col=rev(morecols(50)),
+        border=TRUE, show_row_names =FALSE,
+        show_column_names = TRUE, 
+        clustering_method_columns = "ward.D2",
+        name="z score", show_row_dend = F)
+```
+
+## Figure 5B
+
+Top 10 significant gene sets by normalised enrichment score, identified by GSEA using the HALLMARK gene sets between untreated and post-treated samples. 
+
+### Differential Expression Analysis (DEA)
+First we need to perform the differential expression analysis between Olaparib and untreated
+
+```{r, dea_trial}
+group <- factor(trial.mdat$Cohort, 
+                levels = c("Untreated", "Olaparib" ))
+sampling <- factor(trial.mdat$Sampling, 
+                levels = c("PT", "T" ))
+# Remove with 0 expression
+trial.expr.clean <- trial.expr[rowSums(trial.expr)!=0,]
+# transform ensembl to gene symbol
+rownames(trial.expr.clean) <- gene.names.vector[rownames(trial.expr.clean)]
+# Normalise with edgeR
+y <- DGEList(counts=trial.expr.clean, genes=rownames(trial.expr.clean), group=group)
+y <- y[, y$samples$lib.size!="0"]
+keep <- filterByExpr(y)
+y <- y[keep, , keep.lib.sizes=FALSE]
+y <- calcNormFactors(y,method="TMM")
+design <- model.matrix(~0+group+sampling, data=y$samples)
+rownames(design) <- trial.mdat$`Sample name`
+colnames(design) <- c("Untreated", "Olaparib", "samplingT")
+#Estimate dispersion between groups
+y <- estimateDisp(y, design)
+#Testing DE of UT and Olap (T)
+fit <- glmQLFit(y, design)
+qlf <- glmQLFTest(glmfit = fit, contrast=c(-1,1,0))
+# Extract DE genes
+is.de <- decideTests(object = qlf, p.value=0.05, adjust.method = "fdr")
+```
+
+#### Pathway analysis
+
+First we need to generate a rank
+
+```{r, pathways}
+#Get list of most differentially expressed genes
+res.top <- as.data.frame(topTags(qlf, n = Inf))
+#Rank the genes by logFC
+results.ord <- res.top[ order(-res.top[,"logFC"]), ]
+# remove duplicates
+results.ord <- results.ord[!duplicated(results.ord$genes) & results.ord$genes!="" & !is.na(results.ord$genes),]
+# Extract logFC genes ranked
+ranks <- results.ord$logFC
+names(ranks) <- rownames(results.ord)
+#Hallmark gene sets
+Hs.H <- geneIds(hallmarks)
+# Run pre-ranked GSEA
+fgseaRes <- fgsea(Hs.H, ranks, minSize=15, maxSize=500, eps=0)
+```
+
+
+#### Plot
+```{r, fig5B}
+sign <- subset(fgseaRes, fgseaRes$padj<0.05)
+ordered <- head(sign[order(padj), ], n=10)
+ordered <- ordered[order(-NES), ]
+ordered$pathway <- sub(pattern = "HALLMARK_", replacement = "", ordered$pathway )
+ggplot(ordered, aes(x=reorder(pathway, NES), y=NES, fill=padj)) +
+  geom_col() +
+  coord_flip() +
+  labs(x="Pathway", y="Normalised Enrichment Score",
+       title="Hallmark pathways NES from GSEA") + 
+  scale_fill_gradient(low = "#E64B35FF", high = "#F39B7F99", na.value = NA) +
+  theme_bw() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black"))
+
+```
+
+
+# Supplementary Figure 3A and 3B: Correlation between PDTC models.
+
+## Supplementary Figure 3A
+
+Principal component analysis of RNA expression data demonstrates that samples separate by PDTX models
+
+```{r, Supfig3A}
+# Colour selection
+mypal <- pal_npg("nrc", alpha = 0.7)(8)
+names(mypal) <- unique(untreated.mdata$Model)
+mypal["PAR1177"] <- "#0099B4B2"
+mypal["PAR1221"] <- "#925E9FB2"
+mypal["PAR1008"] <- "#E18726B2"
+# Principal Component Analysis
+pcr <- prcomp(t(untreated.expr.norm))
+autoplot(pcr, 
+         size=5, 
+         alpha=0.8, 
+         col="Model", 
+         data=untreated.mdata) +
+  theme_cowplot() + 
+  ggtitle("PCA: Untreated PDX PARTNER samples - normalised") +
+  scale_color_manual(values = mypal)
+```
+## Supplementary Figure 3B
+
+Heatmap of the correlation between samples (Pearson, Kendall, Spearman) using all genes.
+
+```{r, Supfig3B}
+# Colour selection
+pas.col <- pal_rickandmorty("schwifty", alpha = 0.7)(3)
+names(pas.col)<- unique(untreated.mdata$Passage)
+ha <- HeatmapAnnotation(Passage = untreated.mdata$Passage, 
+                        Model= untreated.mdata$Model,
+                        col = list(Model=mypal, 
+                                   Passage=pas.col))
+Heatmap(cor(untreated.expr.norm, method = c("pearson", "kendall", "spearman")), top_annotation =ha, show_row_names = F, show_column_names = F)
+```
+
+# Supplementary Figure 8C: BRCA1 expression across PDTX
+
+Normalised gene expression (logCPM) of BRCA1 across PDTX models.
+
+```{r, load_par1022}
+load("data/PAR1022_expression.Rdata")
+load("data/PAR1022_metadata.Rdata")
+```
+
+Figure shows BRCA1 expression in untreated samples of models: 1006, 1008, 1022, 1040, 1053, 1141, 1177, 1221.  
+
+```{r, Supfig8C}
+brca1.expr <- untreated.expr.norm["BRCA1",]
+stopifnot(names(brca1.expr) == untreated.mdata$`Sample name`)
+untreated.mdata$BRCA1 <- brca1.expr
+ggplot(untreated.mdata, 
+       aes(y=BRCA1, x="BRCA1", col=Model)) + 
+  geom_quasirandom(size=4) + 
+  scale_color_manual(values = mypal) + 
+  theme_cowplot() + xlab("") + ylab("logCPM")
+```
+
+# Supplementary Figure 10A, 10B and 10C.
+
+## Supplementary Figure 10A: PARP inhibitors
+
+Normalised gene expression (TMM normalised log2CPM) of known PARP inhibitor resistance markers in model 1006 treated in vivo with olaparib. Statistical significance tested between untreated and post-treated tumours using two-tailed unpaired t-test. * p<0.05, ** p<0.01, *** p<0.001, **** p<0.0001.
+
+```{r, parp}
+PARP.inhibitors.markers <- c("BRCA1", "BRCA2", "RAD51", "PALB2", "TP53BP1", "SHLD1", "SHLD2", "SHLD3", "RIF1", "MAD2L2", "DYNLL1", "ATMIN", "PAXIP1", "EZH2", "SLFN11", "PARP1", "PARG", "ABCB1", "ABCG2")
+```
+
+
+```{r, normalise_trial}
+group <- factor(trial.mdat$Cohort, 
+                levels = c("Untreated", "Olaparib" ))
+x <- DGEList(counts=trial.expr.clean, genes=rownames(trial.expr.clean), group=group)
+x <- x[, x$samples$lib.size!=0]
+x <- calcNormFactors(x,method = "TMM")
+logcpmtrial <- cpm(x, log=TRUE)
+logcpmtrialemt <- logcpmtrial[PARP.inhibitors.markers,]
+```
+
+
+We add gene expression info to metadata
+```{r, emt_expr}
+trial.expr.markers.melted <- melt(logcpmtrialemt)
+colnames(trial.expr.markers.melted)<-c("Gene", "Sample name", "TMM normalised logCPM")
+# we create a copy to not mess with the original metadata
+trial.mdat2 <- merge(trial.mdat, trial.expr.markers.melted, by="Sample name", all.x=T)
+trial.mdat2$Gene <- factor(trial.mdat2$Gene, levels = PARP.inhibitors.markers)
+trial.mdat2$Group <- ifelse(
+  trial.mdat2$Gene%in%PARP.inhibitors.markers[1:2], "BRCA reversion",
+  ifelse(trial.mdat2$Gene%in%PARP.inhibitors.markers[3:15], "DDR rewiring",
+         ifelse(trial.mdat2$Gene%in%PARP.inhibitors.markers[16:17], "Target", "Drug efflux")))
+```
+
+Plot
+
+```{r, Supfig10A}
+trialcol2 <- c(OlaparibT="#CC0C00B2", OlaparibPT="#75221cB2", UntreatedPT="#5C88DAB2")
+trial.mdat2$Cohort2 <- paste0(trial.mdat2$Cohort, trial.mdat2$Sampling)
+trial.mdat2$Cohort2 <- factor(trial.mdat2$Cohort2, levels = c("UntreatedPT", "OlaparibT", "OlaparibPT"))
+ggplot(trial.mdat2, 
+       aes(x=Gene, y=`TMM normalised logCPM`, col=Cohort2))+ 
+  geom_boxplot() + 
+  theme_bw() + 
+  scale_color_manual(values=trialcol2) + 
+  theme(axis.text.x = element_text(angle=45, hjust = 1))  + 
+  geom_hline(yintercept = 0, lty="dashed", col="grey40") + 
+  geom_vline(xintercept = c(1.5, 15.5, 17.5), col="grey40") +  
+  stat_compare_means(label =  "p.signif", label.x = 1.5, hide.ns = TRUE, method = "t.test",show.legend = FALSE)
+```
+
+
+## Supplementary Figure 10B: PAR1022
+
+Normalisation
+
+```{r, normal_par1022}
+x <- DGEList(counts=par1022, genes=rownames(par1022), group=mdata.1022$Cohort)
+x <- x[, x$samples$lib.size!=0]
+x <- calcNormFactors(x,method = "TMM")
+logcpm1022 <- cpm(x, log=TRUE)
+```
+
+Boxplot of BRCA1 expression in PAR1022:
+
+```{r, Supfig10B}
+brca1.expr.1022 <- data.table(logcpm1022["BRCA1",])
+colnames(brca1.expr.1022)<-"BRCA1"
+brca1.expr.1022$`Sample name`<-colnames(par1022)
+mdata.1022.brca1<-merge(mdata.1022, brca1.expr.1022, by="Sample name")
+mdata.1022.brca1$Cohort <- factor(mdata.1022.brca1$Cohort, levels = c("Untreated", "Olaparib"))
+ggplot(mdata.1022.brca1[Sampling=="PT"], aes(Cohort, BRCA1)) + 
+  geom_boxplot() + 
+  geom_jitter() + theme_cowplot() + geom_hline(yintercept = 0, lty="dashed", col="grey40")+  stat_compare_means(label =  "p.signif", label.x = 1.5, hide.ns = TRUE, method = "t.test") + ylab("TMM normalised logCPM") + xlab("") + ggtitle("1022")
+```
+
+## Supplementary Figure 10C: plotMA
+
+First, we need to perform another DEA
+
+```{r, dea_par1022}
+group <- factor(mdata.1022$Cohort, 
+                levels = c("Untreated", "Olaparib" ))
+sampling <- factor(mdata.1022$Sampling, 
+                levels = c("PT", "HC" ))
+y <- DGEList(counts=par1022, genes=rownames(par1022), group=group)
+y <- y[, y$samples$lib.size!="0"]
+keep <- filterByExpr(y)
+y <- y[keep, , keep.lib.sizes=FALSE]
+y <- calcNormFactors(y,method="TMM")
+design <- model.matrix(~0+group+sampling, data=y$samples)
+rownames(design) <- mdata.1022$`Sample name`
+colnames(design) <- c("Untreated", "Olaparib", "samplingHC")
+#Estimate dispersion between groups
+y <- estimateDisp(y, design)
+#Testing DE of UT and Olap (T)
+fit <- glmQLFit(y, design)
+qlf <- glmQLFTest(glmfit = fit, contrast=c(-1,1,0))
+```
+
+Mean-difference plot:
+
+```{r, Supfig10C}
+plotMD(qlf)
+abline(h=c(-1, 1), col="red")
+```
+
+
+# Supplementary Figure 11A and 11B: EMT
+
+## Supplementary Figure 11A
+
+Enrichment plot of HALLMARK EPITHELIAL MESENCHYMAL TRANSITION gene set following GSEA of olaparib
+post-treated vs untreated mice from model 1006.
+
+```{r, Supfig11A}
+plotEnrichment(Hs.H[["HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION"]],
+               ranks) + labs(title="Hallmark Epithelial Mesenchymal Transition")
+tmpInd <- match(Hs.H[["HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION"]],names(ranks))
+tmpInd <- tmpInd[!is.na(tmpInd)]
+ranks.emt <- ranks[tmpInd]
+ranks2 <- rep(0,length(ranks.emt))
+ranks2[tmpInd] <- ranks[tmpInd]
+barplot(ranks2, ylim = c(-2, 4))
+```
+
+## Supplementary Figure 11B
+
+Normalised gene expression (TMM normalised log2CPM)
+of epithelial and mesenchymal markers in model 1006 treated in vivo with olaparib. All genes were found to be differentially expressed between untreated and post-treated samples. Statistical significance tested between untreated and post-treated tumours using two-tailed unpaired t-test. * p<0.05, ** p<0.01, *** p<0.001, **** p<0.0001.
+
+```{r, em_trial}
+em.markers <- c("EPCAM", "MUC1", "KRT8", "KRT18", "KRT81", "KRT86", "CLDN3", "CLDN4", "TGFBI", "IGFBP2", "SNAI2", "FN1")
+logcpmtrialem <- logcpmtrial[em.markers,]
+trial.expr.em.markers.melted <- melt(logcpmtrialem)
+colnames(trial.expr.em.markers.melted)<-c("Gene", "Sample name", "TMM normalised logCPM")
+# we create a copy to not mess with the original metadata
+trial.mdat.em <- merge(trial.mdat, trial.expr.em.markers.melted, by="Sample name", all.x=T)
+trial.mdat.em$Gene <- factor(trial.mdat.em$Gene, levels = em.markers)
+trial.mdat.em$Group <- ifelse(
+  trial.mdat.em$Gene%in%em.markers[1:8], "Epithelial markers",
+  ifelse(trial.mdat.em$Gene%in%em.markers[9:12], "Mesenchymal markers", ""))
+trial.mdat.em$Cohort2 <- paste0(trial.mdat.em$Cohort, trial.mdat.em$Sampling)
+trial.mdat.em$Cohort2 <- factor(trial.mdat.em$Cohort2, levels = c("UntreatedPT", "OlaparibT", "OlaparibPT"))
+```
+
+```{r, Supfig11B}
+ggplot(trial.mdat.em,
+       aes(x=Gene, y=`TMM normalised logCPM`, col=Cohort2)) +
+  geom_boxplot() + 
+  theme_bw() + 
+  scale_color_manual(values=trialcol2) + 
+  theme(axis.text.x = element_text(angle=45, hjust = 1))  + 
+  geom_hline(yintercept = 0, lty="dashed", col="grey40") + 
+  geom_vline(xintercept = c(8.5), col="grey40") +  
+  stat_compare_means(label =  "p.signif", label.x = 1.5, hide.ns = TRUE, method = "t.test", show.legend = F)
+```
+
+
+The end.
+
+
