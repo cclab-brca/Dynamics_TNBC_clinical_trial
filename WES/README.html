@@ -170,7 +170,7 @@ pre code {
 <div id="wes-alignment-and-mutation-calling" class="section level1">
 <h1>WES Alignment and mutation calling:</h1>
 <p>This folder contains the code and processed data required to reproduce the WES analysis done in this study.</p>
-<p>The code in <strong>1-fq_to_bam_alignment.sh</strong> begins by downloading fastq files from Clarity (the laboratory management system used by the Genomics Core facility in the CRUK Cambridge Institute). It then runs the alignment on the Combined human-mouse Reference Genome using novocraft. Next, in <strong>2-merge_bams.sh</strong> the BAM files belonging to the same sample are merged, mouse contamination is removed, bamstats are generated. Lastly, HaplotypeCaller is run on all bams.</p>
+<p>The code in <strong>1-fq_to_bam_alignment.sh</strong> begins by downloading fastq files from Clarity (the laboratory management system used by the Genomics Core facility in the CRUK Cambridge Institute). It then runs the alignment on the Combined human-mouse Reference Genome using novocraft. Next, in <strong>2-merge_bams.sh</strong> the BAM files belonging to the same sample are merged, mouse contamination is removed, bamstats are generated, HaplotypeCaller is run on all bams. In <strong>3-PDX_final_annotation.sh</strong> the mutations are annotated using annovar. Lastly, <strong>4-PDX_final_annotation.R</strong> converts the output into human readable txt. These are then combined into a single table <em>Filtered_mutations.txt</em>, and calls present in dbsnnp or the internal panel of normal (N=95) are removed.</p>
 <div id="requirements" class="section level2">
 <h2>Requirements</h2>
 <p>The following software is required to reproduce the analysis:</p>
@@ -180,8 +180,9 @@ pre code {
 <li>samtools-1.8</li>
 <li>novocraft</li>
 <li>gatk-4.0.4.0</li>
+<li>annovar version 2018-04-16</li>
 </ul>
-<p>We use <strong>Picard</strong> generate and collect alignment stats. If you wish to reproduce that step we have provided the required interval_list BED files in data:</p>
+<p>We use <strong>Picard</strong> to generate and collect alignment stats. If you wish to reproduce that step we have provided the required interval_list BED files in data:</p>
 <ul>
 <li>Nextera37_hg19_mmu10.target.intervals - contains target regions for the combined human and mouse genome.</li>
 <li>Nextera_v1.2_target.interval_list - contains target regions for the human genome only</li>
@@ -194,6 +195,7 @@ pre code {
 <li>FastqToBam.txt - table containing information regarding flowcell, pool, barcode. This is used as input for alignment and variant calling.</li>
 <li>bamstats.txt - table containing alignment stats of the merged bams.</li>
 <li>Target intervals files regarding the target regions for teh combined human and mouse genome, and human genome only, respectively, as described above.</li>
+<li>Filtered_mutations.txt - table containing the filtered set of somatic mutations. This was used for all downstream analyses.</li>
 </ul>
 <p>The <em>intermediate_files</em> folder contains the following:</p>
 <ul>
