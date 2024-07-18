@@ -1,0 +1,74 @@
+# novoalign (AVX2) (V3.08.02 - Build Sep 25 2017 @ 12:00:21) - A short read aligner with qualities.
+# (C) 2008-2016 Novocraft Technologies Sdn Bhd.
+# License file: /scratchb/cclab/giovan01/Software/novocraft/novocraft/novoalign.lic
+# Licensed to Li Ka Shing@CRUK
+#  novoalign -d /tmp/BAM_aligned_SLX-17617.UDP0045.HJJV3DMXX.s_1/indexed.novoalign.human_g1k_v37_decoy_UCSC.mmu10.fa -f /tmp/BAM_aligned_SLX-17617.UDP0045.HJJV3DMXX.s_1/SLX-17617/SLX-17617.UDP0045.HJJV3DMXX.s_1.r_1.fq.gz /tmp/BAM_aligned_SLX-17617.UDP0045.HJJV3DMXX.s_1/SLX-17617/SLX-17617.UDP0045.HJJV3DMXX.s_1.r_2.fq.gz -o SAM "@RG\tID:SLX-17617.UDP0045.HJJV3DMXX.s_1\tPL:Illumina\tPU:HJJV3DMXX_UDP0045.s_1\tLB:SLX-17617\tSM:UDP0045" -i PE 30-500 -t 250 -c 8 -a CTGTCTCTTATA -H 20 -k -o FullNW
+# Starting at Thu Apr 25 03:31:51 2019
+# Interpreting input files as Illumina FASTQ, Casava Pipeline 1.8 & later.
+# Index Build Version: 3.8
+#   Hash length:   14
+#     Step size:    2
+#       Paired Reads: 24116971
+#       Proper Pairs: 23904016 (99.1%)
+#     Read Sequences: 48233942
+#   Unique Alignment: 43208125 (89.6%)
+#       Multi Mapped:  4762996 ( 9.9%)
+#   No Mapping Found:   241594 ( 0.5%)
+# QC Failures...
+# Homopolymer Filter:    16327 ( 0.0%)
+#        Read Length:     4900 ( 0.0%)
+#       Elapsed Time: 7179.875 (secs.)
+#           CPU Time: 950.39 (min.)
+# Fragment Length Distribution
+#	From	To	Count
+#	20	29	32
+#	30	39	312
+#	40	49	1594
+#	50	59	6247
+#	60	69	15472
+#	70	79	32793
+#	80	89	63084
+#	90	99	111732
+#	100	109	186004
+#	110	119	292206
+#	120	129	439103
+#	130	139	623784
+#	140	149	832730
+#	150	159	1052260
+#	160	169	1248523
+#	170	179	1400761
+#	180	189	1490239
+#	190	199	1512203
+#	200	209	1475513
+#	210	219	1391932
+#	220	229	1276517
+#	230	239	1136047
+#	240	249	990200
+#	250	259	847669
+#	260	269	713818
+#	270	279	591085
+#	280	289	489516
+#	290	299	401239
+#	300	309	330059
+#	310	319	271257
+#	320	329	224475
+#	330	339	186288
+#	340	349	153639
+#	350	359	128015
+#	360	369	107235
+#	370	379	89081
+#	380	389	74267
+#	390	399	61505
+#	400	409	50752
+#	410	419	41035
+#	420	429	33243
+#	430	439	26133
+#	440	449	20484
+#	450	459	15324
+#	460	469	11759
+#	470	479	8379
+#	480	489	6156
+#	490	499	4526
+#	500	509	372
+# Mean   214, Std Dev  62.0
+# Done at Thu Apr 25 05:31:36 2019

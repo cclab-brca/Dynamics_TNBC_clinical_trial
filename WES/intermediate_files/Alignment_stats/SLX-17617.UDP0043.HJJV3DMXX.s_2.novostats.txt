@@ -1,0 +1,74 @@
+# novoalign (AVX2) (V3.08.02 - Build Sep 25 2017 @ 12:00:21) - A short read aligner with qualities.
+# (C) 2008-2016 Novocraft Technologies Sdn Bhd.
+# License file: /scratchb/cclab/giovan01/Software/novocraft/novocraft/novoalign.lic
+# Licensed to Li Ka Shing@CRUK
+#  novoalign -d /tmp/BAM_aligned_SLX-17617.UDP0043.HJJV3DMXX.s_2/indexed.novoalign.human_g1k_v37_decoy_UCSC.mmu10.fa -f /tmp/BAM_aligned_SLX-17617.UDP0043.HJJV3DMXX.s_2/SLX-17617/SLX-17617.UDP0043.HJJV3DMXX.s_2.r_1.fq.gz /tmp/BAM_aligned_SLX-17617.UDP0043.HJJV3DMXX.s_2/SLX-17617/SLX-17617.UDP0043.HJJV3DMXX.s_2.r_2.fq.gz -o SAM "@RG\tID:SLX-17617.UDP0043.HJJV3DMXX.s_2\tPL:Illumina\tPU:HJJV3DMXX_UDP0043.s_2\tLB:SLX-17617\tSM:UDP0043" -i PE 30-500 -t 250 -c 8 -a CTGTCTCTTATA -H 20 -k -o FullNW
+# Starting at Thu Apr 25 03:09:09 2019
+# Interpreting input files as Illumina FASTQ, Casava Pipeline 1.8 & later.
+# Index Build Version: 3.8
+#   Hash length:   14
+#     Step size:    2
+#       Paired Reads: 21550777
+#       Proper Pairs: 21359669 (99.1%)
+#     Read Sequences: 43101554
+#   Unique Alignment: 38641678 (89.7%)
+#       Multi Mapped:  4232960 ( 9.8%)
+#   No Mapping Found:   208552 ( 0.5%)
+# QC Failures...
+# Homopolymer Filter:    14362 ( 0.0%)
+#        Read Length:     4002 ( 0.0%)
+#       Elapsed Time: 6145.336 (secs.)
+#           CPU Time: 813.09 (min.)
+# Fragment Length Distribution
+#	From	To	Count
+#	20	29	51
+#	30	39	426
+#	40	49	2606
+#	50	59	8973
+#	60	69	21799
+#	70	79	43859
+#	80	89	79422
+#	90	99	130705
+#	100	109	202486
+#	110	119	293608
+#	120	129	405884
+#	130	139	541470
+#	140	149	690031
+#	150	159	843632
+#	160	169	987977
+#	170	179	1107659
+#	180	189	1190015
+#	190	199	1223607
+#	200	209	1220411
+#	210	219	1178623
+#	220	229	1105716
+#	230	239	1009751
+#	240	249	899284
+#	250	259	788046
+#	260	269	680310
+#	270	279	580113
+#	280	289	493139
+#	290	299	414831
+#	300	309	350705
+#	310	319	295676
+#	320	329	249812
+#	330	339	212648
+#	340	349	180929
+#	350	359	155131
+#	360	369	132392
+#	370	379	112504
+#	380	389	96152
+#	390	399	80657
+#	400	409	67170
+#	410	419	55657
+#	420	429	45314
+#	430	439	36384
+#	440	449	28324
+#	450	459	21646
+#	460	469	16488
+#	470	479	12343
+#	480	489	8873
+#	490	499	6346
+#	500	509	553
+# Mean   219, Std Dev  67.7
+# Done at Thu Apr 25 04:51:39 2019
