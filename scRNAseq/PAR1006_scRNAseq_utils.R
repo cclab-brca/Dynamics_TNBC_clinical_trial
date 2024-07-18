@@ -10,6 +10,23 @@ require(dplyr)
 require(reticulate)
 require(officer)
 
+# wrap for opening a plot (png, ps or pdf). Expecting fn extension to be .png, and it will be chanhed according to the device parameter
+.plot_start = function(fn, w, h, device='pdf', res=72, pointsize=12)
+{
+  if (device == "png") {
+    png(filename=sub("ps$", "png", fn), width=w, height=h, res=res, pointsize = pointsize)
+  }
+  else if (device == "ps") {
+    postscript(file=sub("png$", "ps", fn), width=w/res, height=h/res)
+  }
+  else if (device == "pdf") {
+    pdf(file=sub("png$", "pdf", fn), width=w/res, height=h/res)
+  }
+  else {
+    stop(sprintf("unknown output device type: %s", device))
+  }
+}
+
 ####
 # reload packages and re-init parameters and directories
 rl = function(scdb_dir="scdb", scfigs_dir="figs", config_fn=NULL, force_init=T)
@@ -109,7 +126,7 @@ mcell_mc_plot_legend = function(mc_id, ofn=NULL, ncols=1, p_cex=1, p_pch=19, l_b
   
   fig_w = ncols * (sw + 0.2) + 0.5
   fig_h = ceiling(length(nms) / ncols) * sh * 2 + 0.5
-  png(ofn, fig_w, fig_h, unit='in', res=72)
+  .plot_start(ofn, fig_w * 72, fig_h * 72)
   par(mar=c(0, 0, 0, 0))
   plot.new()
   plot.window(0:1, 0:1)
@@ -131,7 +148,7 @@ plt = function(nm1, nm2, lfp, cols, ofn=NULL, x=NULL, y=NULL, show_mc_ids=T, cex
     y = lfp[nm2, ]
   }
   if (!is.null(ofn)) {
-    metacell:::.plot_start(ofn, 450 * ifelse(plot_legend, leg_exp, 1), 450)
+    .plot_start(ofn, 450 * ifelse(plot_legend, leg_exp, 1), 450)
   }
   if (is.null(xlim)) {
     xlim = c(min(x), max(x) +  diff(range(x)) * ifelse(plot_legend, leg_exp-1, 0))
@@ -207,7 +224,7 @@ mc_plot_e_gc_barplots = function(mc_id, name, genes=NULL, gene_groups=NULL, ncol
     e_gc = e_gc[, order(as.numeric(ordered(col2group[mc@colors], levels=grp_ord)) + intra_grp_ord * 1e-6)]
   }
   
-  png(scfigs_fn(mc_id, sprintf("mc_geom_mean_%s", name)), ncolumns * panel_width, panel_height * ceiling(length(nms) / ncolumns))
+  .plot_start(scfigs_fn(mc_id, sprintf("mc_geom_mean_%s", name)), ncolumns * panel_width, panel_height * ceiling(length(nms) / ncolumns))
   layout(matrix(1:(length(nms) + length(nms) %% 2), ncol=ncolumns))
   par(mar=c(0.5, 12, 0.5, 1))
   
@@ -457,7 +474,7 @@ meta_build_blist_filtered_master_mat = function(all_id, filt_id, ds_nm, min_umis
   scdb_add_mat(all_id, full_m)
   
   # plot %mito vs log umis
-  png(scfigs_fn(all_id, "fMito_vs_logUMIs"), 300, 300)
+  .plot_start(scfigs_fn(all_id, "fMito_vs_logUMIs"), 300, 300)
   valid_cols = ifelse(mito_f >= max_mito_f, 'red', 'black')
   if (!is.null(filt_mat_by_column)) {
     valid_cols = ifelse(full_m@cell_metadata[, filt_mat_by_column], 'black', 'red')
@@ -467,7 +484,7 @@ meta_build_blist_filtered_master_mat = function(all_id, filt_id, ds_nm, min_umis
   
   # plot %mito by sample (if field was supplied)
   if (!is.null(sample_field)) {
-    png(scfigs_fn(all_id, "fMito_by_sample"), 500, 500)
+    .plot_start(scfigs_fn(all_id, "fMito_by_sample"), 500, 500)
     par(mar=c(16, 4, 1, 1))
     boxplot(mito_f ~ full_m@cell_metadata[, sample_field], las=2, col='navyblue', notch=T, pch=19, cex=0.5, xlab='', ylab="% mito")
     abline(h=max_mito_f, col='red', lty=2)
@@ -911,7 +928,7 @@ mcell_mat_filter_doublets = function(mat_id, new_mat_id=mat_id, method="Scrublet
       if (plot_umap) {
         uc = scrub$get_umap(res$manifold_obs_)
         rownames(uc) = nms
-        png(scfigs_fn(mat_id, sprintf("scrublet_doublet_umap%s_%s", name, nm)), 600, 600)
+        .plot_start(scfigs_fn(mat_id, sprintf("scrublet_doublet_umap%s_%s", name, nm)), 600, 600)
         plot(uc[,1], uc[,2], pch=19, cex=0.2, col='lightgray', main=sprintf("%s %s (%d/%d)", name, nm, sum(doub[nms]), length(nms)), xlab='umap1', ylab='umap2')
         cdoubs = nms[doub[nms]]
         points(uc[cdoubs,1], uc[cdoubs,2], pch=19, cex=0.2)
@@ -962,7 +979,7 @@ mcell_mat_f_umi_by_gene_biotype = function(mat_id, genes_ifn, gene_pref="GRCh38_
 composition_matrix_barplot_with_metadata = function(x, ofn, val2col, md_fields_cols, samp_md_df) {  
   y = length(md_fields_cols)
   
-  png(ofn, 1000 + 30 * y, max(100 + 20 * nrow(x), 400))
+  .plot_start(ofn, 1000 + 30 * y, max(100 + 20 * nrow(x), 400))
   layout(matrix(seq(1, y+3), nrow=1), widths=c(600, rep(30, y), 200, 200))
   par(mar=c(8,24, 4, 0.5))
   barplot(t(x), col=val2col[colnames(x)], las=2, horiz=T, cex.names=1.2)
@@ -1052,7 +1069,7 @@ mcell_mc_plot_group_composition = function(mc_id, mat_id, sample_field,
   # start with clustering samples composition correlation
   cc = cor(t(samp_grp_ln))
   
-  png(scfigs_fn(mc_id, sprintf("%s_sample_cor", name), scfigs_dir(mc_id, "composition")), 400 + 15 * nrow(cc), 300 + 15 * nrow(cc))
+  .plot_start(scfigs_fn(mc_id, sprintf("%s_sample_cor", name), scfigs_dir(mc_id, "composition")), 400 + 15 * nrow(cc), 300 + 15 * nrow(cc))
   pheatmap(cc, breaks=seq(-1, 1, len=101), treeheight_col=10, treeheight_row=10, cellwidth=15, cellheight=15, annotation_col=mdu, annotation_color=md_fields_cols)
   dev.off()
   
@@ -1174,7 +1191,7 @@ mcell_mc_plot_group_enr_heatmaps = function(mc_id, groups=NULL, grp_ord=NULL, gr
     val2col = val2col[colnames(x)]
     grp_ann = data.frame(row.names=names(val2col), grp=names(val2col))
     
-    png(scfigs_fn(mc_id, sprintf("%s_grp_avg%s", name, ifelse(is.null(grp_ord), '_clust', '')), scfigs_dir(mc_id, "enr_heatmaps")), nrow(x) * gene_width + 400, ncol(x) * mc_height + 200)
+    .plot_start(scfigs_fn(mc_id, sprintf("%s_grp_avg%s", name, ifelse(is.null(grp_ord), '_clust', '')), scfigs_dir(mc_id, "enr_heatmaps")), nrow(x) * gene_width + 400, ncol(x) * mc_height + 200)
     #hm = pheatmap(pmin(pmax(t(x), -zlim), zlim), breaks=seq(-zlim, zlim, len=101), cluster_rows=is.null(grp_ord), annotation_row=grp_ann, cellwidth=10, cellheight = 20, annotation_colors = list(grp=val2col[rownames(grp_ann)]), treeheight_row=10, treeheight_col=10, main=name)
     gs_cols = list()
     for (nm in colnames(gs_ann)) {
@@ -1210,7 +1227,7 @@ mcell_mc_plot_group_enr_heatmaps = function(mc_id, groups=NULL, grp_ord=NULL, gr
     if (space_groups) {
       gaps_mcs = cumsum(rle(grp_ann$grp)$lengths)
     }
-    png(scfigs_fn(mc_id, sprintf("%s_mc%s", name, ifelse(is.null(grp_ord), '_clust', '')), scfigs_dir(mc_id, "enr_heatmaps")), nrow(lfp_d) * gene_width + 400, ncol(lfp_d) * mc_height + 200)
+    .plot_start(scfigs_fn(mc_id, sprintf("%s_mc%s", name, ifelse(is.null(grp_ord), '_clust', '')), scfigs_dir(mc_id, "enr_heatmaps")), nrow(lfp_d) * gene_width + 400, ncol(lfp_d) * mc_height + 200)
     hm = pheatmap(pmin(pmax(t(lfp_d), -zlim), zlim), breaks=seq(-zlim, zlim, len=101), cluster_rows=F, annotation_row=grp_ann, cellwidth=gene_width, cellheight = mc_height, annotation_colors = list(grp=val2col[grp_levels]), treeheight_col=10, main=name, gaps_row=gaps_mcs)
     dev.off()
     write.csv(lfp_d[hm$tree_col$order, ], scfigs_fn(mc_id, sprintf("%s_mc%s", name, ifelse(is.null(grp_ord), '_clust', '')), scfigs_dir(mc_id, "enr_heatmaps"), ext='csv'), quote=F)
@@ -1228,7 +1245,7 @@ mcell_mc_plot_group_enr_heatmaps = function(mc_id, groups=NULL, grp_ord=NULL, gr
       ppt_odir = sprintf("%s/ppt_figs", scfigs_dir(mc_id, "enr_heatmaps"))
       dir.create(ppt_odir, showWarnings = F)
       
-      legend_ofn = sprintf("%s/%s_legend.png", ppt_odir, name)
+      legend_ofn = sprintf("%s/%s_legend.pdf", ppt_odir, name)
       leg_dim = mcell_mc_plot_legend(mc_id, ofn=legend_ofn, ncols=1, filter_names = foc_groups)
       
       for (nm in foc_groups) {
@@ -1277,7 +1294,7 @@ mcell_mc_plot_group_enr_heatmaps = function(mc_id, groups=NULL, grp_ord=NULL, gr
               c_df = rbind(c_df, c_df[1,])
             }
             for (j in seq(1, nrow(c_df), by=2)) {
-              c_ofn = sprintf("%s/%s_%s_%s_vs_%s.png", ppt_odir, nm, types[i], c_df[j, 'gene'], c_df[j+1, 'gene'])
+              c_ofn = sprintf("%s/%s_%s_%s_vs_%s.pdf", ppt_odir, nm, types[i], c_df[j, 'gene'], c_df[j+1, 'gene'])
               plt(c_df[j, 'gene'], c_df[j+1, 'gene'], lfp[,f], mc@colors[f], ofn=c_ofn, cex.lab=1.5)
               pres = ph_with(pres, external_img(c_ofn, bw, bw), location = ph_location(c_x, c_y, bw, bw))
               c_x = c_x + bw + sp
@@ -1376,11 +1393,11 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
     mc_hc = hclust(dist(mc_samp_n), method='ward.D2')
     mc_ord = order(as.numeric(factor(col2grp[mc@colors[as.numeric(rownames(mc_samp_n))]], levels=grp_ord)) + 1e-3 * order(mc_hc$order))
     
-    png(scfigs_fn(mc_id, sprintf("mc_%s_comp_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(mc_samp_n) * 4 + 800, ncol(mc_samp_n) * 20 + 800)
+    .plot_start(scfigs_fn(mc_id, sprintf("mc_%s_comp_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(mc_samp_n) * 4 + 800, ncol(mc_samp_n) * 20 + 800)
     pheatmap(t(mc_samp_n), cluster_rows=ncol(mc_samp_n) > 2, cluster_cols = nrow(mc_samp_n) > 2, color=colorRampPalette(c('white', 'darkred'))(100), annotation_col=mc_ann$ann, annotation_row=md_ann, annotation_colors=ann_cols, cellwidth=4, cellheight=20, treeheight_col=10, treeheight_row=10)
     dev.off()
     
-    png(scfigs_fn(mc_id, sprintf("mc_%s_comp_heatmap_bySupmc", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(mc_samp_n) * 4 + 800, ncol(mc_samp_n) * 20 + 800)
+    .plot_start(scfigs_fn(mc_id, sprintf("mc_%s_comp_heatmap_bySupmc", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(mc_samp_n) * 4 + 800, ncol(mc_samp_n) * 20 + 800)
     pheatmap(t(mc_samp_n[mc_ord, ]), cluster_cols=F, cluster_rows=ncol(mc_samp_n) > 2, color=colorRampPalette(c('white', 'darkred'))(100), annotation_col=mc_ann$ann, annotation_row=md_ann, annotation_colors=ann_cols, cellwidth=4, cellheight=20, treeheight_col=10, treeheight_row=10)
     dev.off()
     write.csv(mc_samp_n[mc_ord, ], scfigs_fn(mc_id, sprintf("mc_%s_comp_heatmap_bySupmc", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field)), ext='csv'), quote=F)
@@ -1390,7 +1407,7 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
     mc_hc = hclust(dist(z_mc_samp), method='ward.D2')
     mc_ord = order(as.numeric(factor(col2grp[mc@colors[as.numeric(rownames(z_mc_samp))]], levels=grp_ord)) + 1e-3 * order(mc_hc$order))
     
-    png(scfigs_fn(mc_id, sprintf("mc_%s_Z_heatmap_bySupmc", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_mc_samp) * 4 + 800, ncol(z_mc_samp) * 20 + 800)
+    .plot_start(scfigs_fn(mc_id, sprintf("mc_%s_Z_heatmap_bySupmc", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_mc_samp) * 4 + 800, ncol(z_mc_samp) * 20 + 800)
     pheatmap(pmin(pmax(t(z_mc_samp[mc_ord, ]), -max_z), max_z), breaks=seq(-max_z, max_z, len=101), cluster_cols=F, cluster_rows=ncol(z_mc_samp) > 2, annotation_col=mc_ann$ann, annotation_row=md_ann, annotation_colors=ann_cols, cellwidth=4, cellheight=20, treeheight_col=10, treeheight_row=10)
     dev.off()
     write.csv(z_mc_samp[mc_ord, ], scfigs_fn(mc_id, sprintf("mc_%s_Z_heatmap_bySupmc", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field)), ext='csv'), quote=F)
@@ -1419,7 +1436,7 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
       mc_hc = hclust(dist(z_mc_md), method='ward.D2')
       mc_ord = order(as.numeric(factor(col2grp[mc@colors[as.numeric(rownames(z_mc_md))]], levels=grp_ord)) + 1e-3 * order(mc_hc$order))
       
-      png(scfigs_fn(mc_id, "mc_md_Z_heatmap_bySupmc", dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_mc_md) * 4 + 800, ncol(z_mc_md) * 20 + 800)
+      .plot_start(scfigs_fn(mc_id, "mc_md_Z_heatmap_bySupmc", dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_mc_md) * 4 + 800, ncol(z_mc_md) * 20 + 800)
       pheatmap(pmin(pmax(t(z_mc_md[mc_ord, ]), -max_z), max_z), breaks=seq(-max_z, max_z, len=101), cluster_cols=F, cluster_rows=F, annotation_col=mc_ann$ann, annotation_row=md_val_ann, annotation_colors=md_val_cols, cellwidth=4, cellheight=20, gaps_row=md_gap)
       dev.off()
       write.csv(z_mc_md[mc_ord, ], scfigs_fn(mc_id, "mc_md_Z_heatmap_bySupmc", dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field)), ext='csv'), quote=F)
@@ -1430,11 +1447,11 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
     smc_samp_n = smc_samp / rowSums(smc_samp)
     
     grp_ann = data.frame(row.names=grp_ord, group=grp_ord)
-    png(scfigs_fn(mc_id, sprintf("smc_%s_comp_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(smc_samp_n) * 20 + 800, ncol(smc_samp_n) * 20 + 800)
+    .plot_start(scfigs_fn(mc_id, sprintf("smc_%s_comp_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(smc_samp_n) * 20 + 800, ncol(smc_samp_n) * 20 + 800)
     pheatmap(t(smc_samp_n), color=colorRampPalette(c('white', 'darkred'))(100), annotation_col=grp_ann, annotation_row=md_ann, annotation_colors=ann_cols, cellwidth=20, cellheight=20, treeheight_col=10, treeheight_row=10)
     dev.off()
     
-    png(scfigs_fn(mc_id, sprintf("smc_%s_comp_heatmap", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(smc_samp_n) * 20 + 800, ncol(smc_samp_n) * 20 + 800)
+    .plot_start(scfigs_fn(mc_id, sprintf("smc_%s_comp_heatmap", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(smc_samp_n) * 20 + 800, ncol(smc_samp_n) * 20 + 800)
     pheatmap(t(smc_samp_n[grp_ord, ]), cluster_cols=F, color=colorRampPalette(c('white', 'darkred'))(100), annotation_col=grp_ann, annotation_row=md_ann, annotation_colors=ann_cols, cellwidth=20, cellheight=20, treeheight_col=10, treeheight_row=10)
     dev.off()
     write.csv(smc_samp_n[grp_ord, ], scfigs_fn(mc_id, sprintf("smc_%s_comp_heatmap", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field)), ext='csv'), quote=F)
@@ -1442,7 +1459,7 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
     e_smc_samp = (rowSums(smc_samp) %*% t(colSums(smc_samp))) / sum(smc_samp)
     z_smc_samp = (smc_samp - e_smc_samp) / sqrt(e_smc_samp + 1)
     
-    png(scfigs_fn(mc_id, sprintf("smc_%s_Z_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_smc_samp) * 20 + 800, ncol(z_smc_samp) * 20 + 800)
+    .plot_start(scfigs_fn(mc_id, sprintf("smc_%s_Z_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_smc_samp) * 20 + 800, ncol(z_smc_samp) * 20 + 800)
     pheatmap(pmin(pmax(t(z_smc_samp), -max_z), max_z), breaks=seq(-max_z, max_z, len=101), annotation_col=grp_ann, annotation_row=md_ann, annotation_colors=ann_cols, cellwidth=20, cellheight=20, treeheight_col=10, treeheight_row=10)
     dev.off()
     write.csv(z_smc_samp[grp_ord, ], scfigs_fn(mc_id, sprintf("smc_%s_Z_heatmap", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field)), ext='csv'), quote=F)
@@ -1468,7 +1485,7 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
         p_vals_txt = t(p_vals_txt)
       }
       
-      png(scfigs_fn(mc_id, "smc_md_Z_heatmap_clust", dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_smc_md) * 20 + 800, ncol(z_smc_md) * 20 + 800)
+      .plot_start(scfigs_fn(mc_id, "smc_md_Z_heatmap_clust", dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_smc_md) * 20 + 800, ncol(z_smc_md) * 20 + 800)
       pheatmap(pmin(pmax(t(z_smc_md), -max_z), max_z), breaks=seq(-max_z, max_z, len=101), cluster_rows=F, annotation_col=grp_ann, annotation_row=md_val_ann, annotation_colors=md_val_cols, cellwidth=20, cellheight=20, gaps_row=md_gap, display_numbers=p_vals_txt)
       dev.off()
       write.csv(z_smc_md, scfigs_fn(mc_id, "smc_md_Z_heatmap_clust", dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field)), ext='csv'), quote=F)
@@ -1480,7 +1497,7 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
       
       meta_ann = data.frame(row.names=names(meta_grp2col), group=names(meta_grp2col))
       ann_cols[['group']] = meta_grp2col
-      png(scfigs_fn(mc_id, sprintf("meta_smc_%s_comp_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(smc_samp_n) * 20 + 800, ncol(smc_samp_n) * 20 + 800)
+      .plot_start(scfigs_fn(mc_id, sprintf("meta_smc_%s_comp_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(smc_samp_n) * 20 + 800, ncol(smc_samp_n) * 20 + 800)
       pheatmap(t(smc_samp_n), color=colorRampPalette(c('white', 'darkred'))(100), annotation_col=meta_ann, annotation_row=md_ann, annotation_colors=ann_cols, cellwidth=20, cellheight=20, treeheight_col=10, treeheight_row=10)
       dev.off()
       write.csv(smc_samp_n, scfigs_fn(mc_id, sprintf("meta_smc_%s_comp_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field)), ext='csv'), quote=F )
@@ -1488,7 +1505,7 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
       e_smc_samp = (rowSums(smc_samp) %*% t(colSums(smc_samp))) / sum(smc_samp)
       z_smc_samp = (smc_samp - e_smc_samp) / sqrt(e_smc_samp + 1)
       
-      png(scfigs_fn(mc_id, sprintf("meta_smc_%s_Z_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_smc_samp) * 20 + 800, ncol(z_smc_samp) * 20 + 800)
+      .plot_start(scfigs_fn(mc_id, sprintf("meta_smc_%s_Z_heatmap_clust", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_smc_samp) * 20 + 800, ncol(z_smc_samp) * 20 + 800)
       pheatmap(pmin(pmax(t(z_smc_samp), -max_z), max_z), breaks=seq(-max_z, max_z, len=101), annotation_col=meta_ann, annotation_row=md_ann, annotation_colors=ann_cols, cellwidth=20, cellheight=20, treeheight_col=10, treeheight_row=10)
       dev.off()
       write.csv(z_smc_samp, scfigs_fn(mc_id, sprintf("meta_smc_%s_Z_heatmap", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field)), ext='csv'), quote=F)
@@ -1512,7 +1529,7 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
           p_vals_txt = t(p_vals_txt)
         }
         
-        png(scfigs_fn(mc_id, "meta_smc_md_Z_heatmap_clust", dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_smc_md) * 20 + 800, ncol(z_smc_md) * 20 + 800)
+        .plot_start(scfigs_fn(mc_id, "meta_smc_md_Z_heatmap_clust", dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), nrow(z_smc_md) * 20 + 800, ncol(z_smc_md) * 20 + 800)
         pheatmap(pmin(pmax(t(z_smc_md), -max_z), max_z), breaks=seq(-max_z, max_z, len=101), cluster_rows=F, annotation_col=meta_ann, annotation_row=md_val_ann, annotation_colors=md_val_cols, cellwidth=20, cellheight=20, gaps_row=md_gap, display_numbers=p_vals_txt)
         dev.off()
         write.csv(z_smc_md, scfigs_fn(mc_id, "meta_smc_md_Z_heatmap", dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field)), ext='csv'), quote=F)
@@ -1527,14 +1544,14 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
     smc = factor(col2grp[mc@colors], levels=grp_ord)
     smc2 = factor(col2grp[mc@colors], levels=names(sort(tapply(simp, col2grp[mc@colors], median))))
     
-    png(scfigs_fn(mc_id, sprintf("mc_Simpson_by_%s", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), max(400, 200 + 20 * length(col2grp)), 600)
+    .plot_start(scfigs_fn(mc_id, sprintf("mc_Simpson_by_%s", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), max(400, 200 + 20 * length(col2grp)), 600)
     par(mar=c(20,4,4,1))
     boxplot(simp ~ smc, outline=F, main=sprintf("MCs by %s", break_by_field), las=2, col=grp2col[grp_ord], xlab='', ylab='Inverse Simpson')
     abline(h=c(1, ncol(mc_samp)), lty=2, col='darkgrey')
     stripchart(simp ~ smc, method='jitter', jitter=0.2, pch=19, vertical=T, add=T, cex=0.3)
     dev.off()
     
-    png(scfigs_fn(mc_id, sprintf("mc_Simpson_by_%s_ord", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), max(400, 200 + 20 * length(col2grp)), 600)
+    .plot_start(scfigs_fn(mc_id, sprintf("mc_Simpson_by_%s_ord", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), max(400, 200 + 20 * length(col2grp)), 600)
     par(mar=c(20,4,4,1))
     boxplot(simp ~ smc2, outline=F, main=sprintf("MCs by %s", break_by_field), las=2, col=grp2col[levels(smc2)], xlab='', ylab='Inverse Simpson')
     abline(h=c(1, ncol(mc_samp)), lty=2, col='darkgrey')
@@ -1545,7 +1562,7 @@ mcell_mc_plot_mc_composition_by_metadata_field = function(mc_id, break_by_field,
       
       smc2 = factor(group2meta[col2grp[mc@colors]], levels=names(sort(tapply(simp, group2meta[col2grp[mc@colors]], median))))
       
-      png(scfigs_fn(mc_id, sprintf("meta_mc_Simpson_by_%s_ord", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), max(400, 200 + 20 * length(meta_grp2col)), 600)
+      .plot_start(scfigs_fn(mc_id, sprintf("meta_mc_Simpson_by_%s_ord", break_by_field), dir=scfigs_dir(mc_id, sprintf("composition_by_%s", break_by_field))), max(400, 200 + 20 * length(meta_grp2col)), 600)
       par(mar=c(20,4,4,1))
       boxplot(simp ~ smc2, outline=F, main=sprintf("MCs by %s", break_by_field), las=2, col=meta_grp2col[levels(smc2)], xlab='', ylab='Inverse Simpson')
       abline(h=c(1, ncol(mc_samp)), lty=2, col='darkgrey')
@@ -1608,4 +1625,5 @@ mcell_common_plots = function(mc_id, sample_field, md_fields_cols,
     }
   }  
 }
+
 

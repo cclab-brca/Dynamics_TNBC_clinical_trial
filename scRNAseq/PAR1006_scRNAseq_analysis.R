@@ -98,7 +98,7 @@ sinfo = mat@cell_metadata %>% group_by(Sample_ID) %>%
   summarise(f_doub = mean(doublet_by_Scrublet), n_cells = length(Sample_ID)) %>% 
   inner_join(x=sinfo)
 
-png(scfigs_fn(filtD_id, "fDoub_by_nCells_per_samp"), 400, 400)
+.plot_start(scfigs_fn(filtD_id, "fDoub_by_nCells_per_samp"), 400, 400)
 plot(log2(sinfo$n_cells), sinfo$f_doub, col=exp_cols[sinfo$Experiment], pch=19, cex=2, xlab='#cells (log2)', ylab="%doublet (estim)")
 legend("topright", legend=names(exp_cols), fill=exp_cols, title='Exp')
 dev.off()
@@ -156,7 +156,7 @@ if (rebuild || !scdb_obj_exists("mc", filt2_id)) {
   plt("f_lncRNA", "mu_UMIs", lfp, sus_cdict[sus_grps], x=mc_f_lnc, y=log2(mc_mu_umi), ofn=scfigs_fn(filtD_id, "muUMIs_vs_flncRNA"))
   plt("f_mito", "mu_UMIs", lfp, sus_cdict[sus_grps], x=mc_f_mito, y=mc_mu_umi, ofn=scfigs_fn(filtD_id, "muUMIs_vs_fMito"))
   
-  png(scfigs_fn(filtD_id, "mc2d_sus_nuclei"), 400, 400)
+  .plot_start(scfigs_fn(filtD_id, "mc2d_sus_nuclei"), 400, 400)
   plot(mc2d@mc_x, mc2d@mc_y, pch=21, bg=sus_cdict[sus_grps], cex=2)
   dev.off()
  
@@ -169,7 +169,7 @@ if (rebuild || !scdb_obj_exists("mc", filt2_id)) {
   mc_samp = table(mc@mc, mat@cell_metadata[names(mc@mc), 'Sample_ID'])
   mc_samp_e = rowSums(mc_samp) %*% t(colSums(mc_samp)) / sum(mc_samp)
   mc_samp_z = (mc_samp - mc_samp_e) / sqrt(mc_samp_e + 1)
-  png(scfigs_fn(filtD_id, "mc_sample_composition_z_score"), nrow(mc_samp) * 7 + 600, ncol(mc_samp) * 20 + 100)
+  .plot_start(scfigs_fn(filtD_id, "mc_sample_composition_z_score"), nrow(mc_samp) * 7 + 600, ncol(mc_samp) * 20 + 100)
   z_max = 25
   pheatmap(pmin(pmax(t(mc_samp_z), -z_max), z_max), breaks=seq(-z_max, z_max, len=101), treeheight_col=10, treeheight_row=10, cellwidth=7, cellheight=20, annotation_col=data.frame(row.names=1:ncol(lfp), Type=paste(sus_grps, sus_grps2)))
   dev.off()
@@ -230,7 +230,7 @@ df = rbind(df, data.frame(mcs = colnames(lfp), type=mcs_grp, set='f_mitoRNA', va
 
 df = df %>% filter(type %in% grp_ord) %>% mutate(type=factor(type, levels=grp_ord))
 p = ggplot(df, aes(x=type, y=log2(value))) + stat_summary(fun = median, fun.min = median, fun.max = median, geom = "crossbar", width = 0.9) +  geom_point(aes(fill=type), pch = 21, position = position_jitter(width=0.2)) + scale_fill_manual(values=grp2col[grp_ord]) + scale_x_discrete(guide=guide_axis(angle=30)) + labs(x="") + facet_wrap(~set, scales="free_y")
-ggsave(scfigs_fn(filt2_id, "qcs_per_mc"), p, width=7, height=4)  
+ggsave(scfigs_fn(filt2_id, "qcs_per_mc", ext='pdf'), p, width=7, height=4)  
 
 # %cycling per supmc and condition
 is_cycling_cutoff = 0.05
@@ -238,7 +238,7 @@ min_cells_in_supmc_for_cycling = 50
 
 f_cc = get_gset_f_umis(filtD_id, "hg19_cell_cycle_filt")
 
-png(scfigs_fn(filt2_id, "f_cc_hist"), 300, 300)
+.plot_start(scfigs_fn(filt2_id, "f_cc_hist"), 300, 300)
 plot(density(f_cc), xlab='Cell Cycle module (%UMIs)', lwd=2, col='steelblue', main="")
 abline(v=is_cycling_cutoff, lty=2)
 dev.off()
@@ -254,14 +254,14 @@ df_f = df %>% group_by(Condition, Supmc) %>% summarise(n=length(Supmc))  %>% fil
 df_g = df_f %>% group_by(Condition, Supmc, n) %>% summarise(f_cc = mean(cycling)) %>% mutate(f_cells=n / cells_per_cond[as.character(Condition)]) 
 
 p = ggplot(df_g, aes(x=Condition, fill=Supmc, y=f_cc)) + geom_bar(stat="identity", position='dodge', color='black')  +  geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25, size=1.5) + scale_fill_manual(values=grp2col[grp_ord]) + scale_x_discrete(guide=guide_axis(angle=30)) + labs(x="", y='% cycling')
-ggsave(scfigs_fn(filt2_id, sprintf("f_cycling_by_supmc_cond_co%.2f", is_cycling_cutoff)), p, width=6, height=3)
+ggsave(scfigs_fn(filt2_id, sprintf("f_cycling_by_supmc_cond_co%.2f", is_cycling_cutoff), ext='pdf'), p, width=6, height=3)
 
 df_g = df %>% group_by(Condition, Supmc) %>% summarise(n=length(Supmc), f_cc = mean(cycling)) %>% mutate(f_cells = n / cells_per_cond[as.character(Condition)]) 
 
 cond_levels = levels(df_g$Condition)
 max_cc = max(df_g$f_cc)
 
-png(scfigs_fn(filt2_id, sprintf("f_cycling_and_composition_co%.2f", is_cycling_cutoff)), length(cond_levels) * 180, 300)
+.plot_start(scfigs_fn(filt2_id, sprintf("f_cycling_and_composition_co%.2f", is_cycling_cutoff)), length(cond_levels) * 180, 300)
 par(mfrow=c(1, length(cond_levels)), mar=c(4,2.5,3,0.5))
 for (cond in cond_levels) {
   df_c = filter(df_g, Condition == cond)
@@ -283,7 +283,7 @@ for (cond in cond_levels) {
 dev.off()
 
 supmc_cond_cc = dcast(df_g %>% select(Condition, Supmc, f_cc), Supmc ~ Condition) %>% tibble::column_to_rownames(var='Supmc')
-png(scfigs_fn(filt2_id, sprintf("f_cycling_by_supmc_barplot_co%.2f", is_cycling_cutoff)), nrow(supmc_cond_cc) * 100 + 50, 300)
+.plot_start(scfigs_fn(filt2_id, sprintf("f_cycling_by_supmc_barplot_co%.2f", is_cycling_cutoff)), nrow(supmc_cond_cc) * 100 + 50, 300)
 barplot(t(as.matrix(supmc_cond_cc)), beside=T, col=cdict$Condition, legend.text=names(cdict$Condition), ylim=c(-0.01, max_cc), ylab="% prolif cells")
 rect(seq(1, by=4, length=length(mids)), -0.008, seq(4, by=4, length=length(mids)), -0.002, col=grp2col[rownames(supmc_cond_cc)])
 dev.off()
@@ -304,10 +304,10 @@ y = reshape2::melt(samp_supmc_n, varnames=c('Sample_ID', 'supmc'), value.name='f
          supmc=factor(supmc, levels=grp_ord))
 
 p = ggplot(y, aes(x=Condition, y=frac, fill=Treatment)) + geom_boxplot(outlier.shape = NA, aes(group=Condition, fill=supmc)) + geom_dotplot(binaxis = "y", stackdir = "center", position = position_dodge(0.2), width=0.9, dotsize = 1.2) + facet_wrap(~supmc, nrow=1, scales="free_y") + scale_fill_manual(values=c(grp2col, cdict$Treatment)) + guides(fill="none") + labs(x="", title="%supmc per sample") + geom_vline(xintercept = 1.5, linetype='dashed', color='darkgray')
-ggsave(scfigs_fn(filt2_id, "supmc_f_by_cond"), p, width=ncol(samp_supmc)*1.75, height=3)
+ggsave(scfigs_fn(filt2_id, "supmc_f_by_cond", ext='pdf'), p, width=ncol(samp_supmc)*1.75, height=3)
 
 p = ggplot(y, aes(x=supmc, y=frac, fill=supmc)) + geom_boxplot(outlier.shape = NA, aes(group=supmc, fill=supmc)) + geom_jitter(position=position_jitter(0.2), show.legend=F, shape=21, colour='black', size=1.2) + facet_wrap(~Condition, nrow=1) + scale_fill_manual(values=c(grp2col, cdict$Treatment)) + guides(fill="none") + scale_x_discrete(guide=guide_axis(angle=30)) + labs(x="", title="%supmc per sample")
-ggsave(scfigs_fn(filt2_id, "supmc_f_by_cond2"), p, width=6, height=3)
+ggsave(scfigs_fn(filt2_id, "supmc_f_by_cond2", ext='pdf'), p, width=6, height=3)
 
 # common plots
 mcell_common_plots(filt2_id, mat_id=filtD_id, 'Sample_ID', cdict, grp_ord=grp_ord, hm_n_glob_enr=8, hm_n_grp_enr=8, hm_n_grp_outliers=5, hm_show_marker_type=F, hm_zlim=2, selected_samples=grep('AZD', unique(mat@cell_metadata[names(mc@mc), 'Sample_ID']), v=T, invert=T))
@@ -323,7 +323,7 @@ foc_gs = intersect(gs_by_max, gs_by_diff)
 cc = cor(t(lfp[foc_gs, foc_mcs]))
 cw = 9; cutree_k = 4; treeheight = 15;
 
-png(scfigs_fn(filt2_id, sprintf('gene_cor_over_Mesen_and_Epi_max%.2f_diff%.2f', emt_min_enr, emt_min_enr_diff)), nrow(cc) * cw + 200, ncol(cc) * cw + 100)
+.plot_start(scfigs_fn(filt2_id, sprintf('gene_cor_over_Mesen_and_Epi_max%.2f_diff%.2f', emt_min_enr, emt_min_enr_diff)), nrow(cc) * cw + 200, ncol(cc) * cw + 100)
 hm = pheatmap(cc, breaks=seq(-1, 1, len=101), treeheight_col=treeheight, treeheight_row=treeheight, cellwidth=cw, cellheight=cw, fontsize=7, cutree_row=cutree_k, cutree_col=cutree_k)
 dev.off()
 
@@ -331,7 +331,7 @@ gmods = cutree(hm$tree_row, cutree_k)
 mc_gmods = tgs_matrix_tapply(t(lfp[names(gmods), foc_mcs]), gmods, mean)
 gmods_odir = scfigs_dir(filt2_id, 'Mesen_Epithelial_gmods')
 
-png(scfigs_fn(filt2_id, "gmods_plts", dir=gmods_odir), 250 * cutree_k, 250 * cutree_k)
+.plot_start(scfigs_fn(filt2_id, "gmods_plts", dir=gmods_odir), 250 * cutree_k, 250 * cutree_k)
 par(mfrow=rep(cutree_k, 2), mar=c(4,4,1,1))
 for (i in seq(cutree_k)) {
   for (j in seq(cutree_k)) {
@@ -383,7 +383,7 @@ tfs_ord = foc_tfs[order( apply(gm_tf_cc[, foc_tfs], 2, which.max) - 1e-3 * apply
 
 g_ann = data.frame(row.names=foc_tfs, max_lfp=g_max[foc_tfs], dominant_sig=rownames(gm_tf_cc)[apply(gm_tf_cc[, foc_tfs], 2, which.max)])
 
-png(scfigs_fn(filt2_id, sprintf('gmods_TFs_cor_min%.2f_%dperSig', g_max_th, n_tfs_per_sig), gmods_odir), length(tfs_ord)*12 + 300, nrow(gm_tf_cc)*40 + 200) 
+.plot_start(scfigs_fn(filt2_id, sprintf('gmods_TFs_cor_min%.2f_%dperSig', g_max_th, n_tfs_per_sig), gmods_odir), length(tfs_ord)*12 + 300, nrow(gm_tf_cc)*40 + 200) 
 pheatmap(gm_tf_cc[, tfs_ord], cluster_cols=F, breaks=seq(-1, 1, len=101), cluster_rows=F, annotation_col=g_ann, cellwidth=12, cellheight=40)
 dev.off()  
 
@@ -409,7 +409,7 @@ for (run_name in names(n_strats_l)) {
                       
   tfs_ord = rownames(tfs_by_strat_n)[order(max_strat + 1e-3 * apply(tfs_by_strat_n, 1, max))]
   
-  png(scfigs_fn(filt2_id, sprintf('TFs_on_%s_min%.2f_%dper_%dqs', run_name, g_max_th, n_tfs_per_sig, n_strats), gmods_odir), 600, length(tfs_ord) * 8 + 100) 
+  .plot_start(scfigs_fn(filt2_id, sprintf('TFs_on_%s_min%.2f_%dper_%dqs', run_name, g_max_th, n_tfs_per_sig, n_strats), gmods_odir), 600, length(tfs_ord) * 8 + 100) 
   pheatmap(tfs_by_strat_n[tfs_ord, ], cluster_cols=F, cluster_rows=F, annotation_row=g_ann, fontsize=7)
   dev.off()
   
@@ -417,7 +417,7 @@ for (run_name in names(n_strats_l)) {
   dir.create(gmods_dir2, showWarnings = F)
   for (i in seq_along(tfs_ord)) {
     nm = tfs_ord[i]
-    png(scfigs_fn(filt2_id, sprintf("%s%d_%d_%s_by_%dqs", run_name, max_strat[nm], i, nm, n_strats), gmods_dir2), 400, 300)
+    .plot_start(scfigs_fn(filt2_id, sprintf("%s%d_%d_%s_by_%dqs", run_name, max_strat[nm], i, nm, n_strats), gmods_dir2), 400, 300)
     boxplot(lfp[nm, foc_mcs] ~ mc_strat, outline=F, col=NA, main=nm, xlab='', ylab='enr')
     stripchart(lfp[nm, foc_mcs] ~ mc_strat, method='jitter', jitter=0.2, vertical=T, add=T, pch=19)
     dev.off()
@@ -426,7 +426,7 @@ for (run_name in names(n_strats_l)) {
   strat_comp = table(mc_strat, mcs_grp[foc_mcs])
   strat_comp_n = strat_comp / rowSums(strat_comp)
   strat_comp_n = strat_comp_n[, intersect(grp_ord, colnames(strat_comp_n))]
-  png(scfigs_fn(filt2_id, sprintf('%s_%dqs_supmc_composition', run_name, n_strats), gmods_odir), 500, 300)
+  .plot_start(scfigs_fn(filt2_id, sprintf('%s_%dqs_supmc_composition', run_name, n_strats), gmods_odir), 500, 300)
   barplot(t(strat_comp_n), col=grp2col[colnames(strat_comp_n)], ylab='% of mcs')
   dev.off()
 }
