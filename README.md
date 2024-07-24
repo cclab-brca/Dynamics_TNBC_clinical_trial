@@ -1,4 +1,4 @@
-# Dynamics_TNBC_clinical_trial
+# Dynamics_TNBC_co-clinical_trial
 
 
 This Github directory includes information relevant to the following publication from Shea and Caldas lab members:
